@@ -15,10 +15,11 @@ var errStoreToken = errors.New("unable to store token")
 
 // RedisDL defines main struct of the app
 type RedisDL struct {
-	client      *redis.Client
-	m           sync.Mutex
-	key         string
-	lockTimeout time.Duration
+	client       *redis.Client
+	m            sync.Mutex
+	key          string
+	lockTimeout  time.Duration
+	currentToken string
 }
 
 // New creates a new app
@@ -46,6 +47,13 @@ func (r *RedisDL) lock(ctx context.Context) error {
 	token, err := randToken()
 	if err != nil {
 		return err
+	}
+
+	for {
+		if err := r.storeToken(token); err != nil {
+			return err
+		}
+		r.currentToken = token
 	}
 	return nil
 }
