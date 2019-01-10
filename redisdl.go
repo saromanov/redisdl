@@ -3,6 +3,7 @@ package redisdl
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"sync"
 
 	"github.com/go-redis/redis"
@@ -34,5 +35,17 @@ func (r *RedisDL) Lock(ctx context.Context) error {
 func (r *RedisDL) lock(ctx context.Context) error {
 	r.m.Lock()
 	defer r.m.Unlock()
+	token, err := randToken()
+	if err != nil {
+		return err
+	}
 	return nil
+}
+
+func randToken() (string, error) {
+	b := make([]byte, 16)
+	if err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", b), nil
 }
