@@ -2,28 +2,36 @@ package redisdl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"sync"
+	"time"
 
 	"github.com/go-redis/redis"
 )
 
+var errStoreToken = errors.New("unable to store token")
+
 // RedisDL defines main struct of the app
 type RedisDL struct {
-	client *redis.Client
-	m      sync.Mutex
+	client      *redis.Client
+	m           sync.Mutex
+	key         string
+	lockTimeout time.Duration
 }
 
 // New creates a new app
-func New(c *redis.Client, fileName string) (*RedisDL, error) {
+func New(c *redis.Client, key string) (*RedisDL, error) {
 	if err := c.Ping(); err != nil {
 		return nil, fmt.Errorf("redis is not available: %v", err)
 	}
 
 	return &RedisDL{
-		client: c,
-		m:      sync.Mutex{},
+		client:      c,
+		m:           sync.Mutex{},
+		key:         key,
+		lockTimeout: 5 * time.Second,
 	}, nil
 }
 
@@ -42,9 +50,22 @@ func (r *RedisDL) lock(ctx context.Context) error {
 	return nil
 }
 
+// storeToken provides store of token
+func (r *RedisDL) storeToken(token string) error {
+	ok, err := r.client.SetNX(r.key, token, r.lockTimeout).Result()
+	if err == redis.Nil {
+		err = nil
+	}
+	if !ok {
+		return errStoreToken
+	}
+	return err
+
+}
+
 func randToken() (string, error) {
 	b := make([]byte, 16)
-	if err := rand.Read(b); err != nil {
+	if _, err := rand.Read(b); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("%x", b), nil
