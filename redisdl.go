@@ -61,7 +61,6 @@ func (r *RedisDL) lock(ctx context.Context) error {
 		case <-retry.C:
 		}
 	}
-	return nil
 }
 
 // storeToken provides store of token
@@ -75,6 +74,12 @@ func (r *RedisDL) storeToken(token string) error {
 	}
 	return err
 
+}
+
+// deleteToken provides removing of the token from redis
+func (r *RedisDL) deleteToken() error {
+	_, err := r.client.Del(r.key).Result()
+	return err
 }
 
 func randToken() (string, error) {
