@@ -48,12 +48,18 @@ func (r *RedisDL) lock(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-
+	var retry *time.Timer
 	for {
 		if err := r.storeToken(token); err != nil {
 			return err
 		}
 		r.currentToken = token
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-retry.C:
+		}
 	}
 	return nil
 }
