@@ -24,7 +24,7 @@ type RedisDL struct {
 
 // New creates a new app
 func New(c *redis.Client, key string) (*RedisDL, error) {
-	if err := c.Ping(); err != nil {
+	if _, err := c.Ping().Result(); err != nil {
 		return nil, fmt.Errorf("redis is not available: %v", err)
 	}
 
@@ -60,7 +60,7 @@ func (r *RedisDL) lock(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	var retry *time.Timer
+	retry := time.NewTimer(r.lockTimeout)
 	for {
 		if err := r.storeToken(token); err != nil {
 			return err
