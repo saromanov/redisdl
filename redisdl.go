@@ -41,6 +41,18 @@ func (r *RedisDL) Lock(ctx context.Context) error {
 	return r.lock(ctx)
 }
 
+// Unlock provides unlocking of the store
+func (r *RedisDL) Unlock() error {
+	r.m.Lock()
+	defer r.m.Unlock()
+	return r.deleteToken()
+}
+
+// resetToken provides removing of current token
+func (r *RedisDL) resetToken() {
+	r.currentToken = ""
+}
+
 func (r *RedisDL) lock(ctx context.Context) error {
 	r.m.Lock()
 	defer r.m.Unlock()
