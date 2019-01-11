@@ -76,6 +76,7 @@ func (r *RedisDL) resetToken() {
 	r.currentToken = ""
 }
 
+// lock provides trying to gen new token
 func (r *RedisDL) lock(ctx context.Context) error {
 	r.m.Lock()
 	defer r.m.Unlock()
@@ -84,12 +85,15 @@ func (r *RedisDL) lock(ctx context.Context) error {
 		return err
 	}
 	retry := time.NewTimer(r.opt.LockTimeout)
+	atts := r.opt.RetryCount + 1
 	for {
-		if err := r.storeToken(token); err != nil {
-			return err
+		if err := r.storeToken(token); err == nil {
+			r.currentToken = token
+			return nil
 		}
-		r.currentToken = token
-
+		if atts--; atts <= 0 {
+			return fmt.Errorf("unable to generate token")
+		}
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
