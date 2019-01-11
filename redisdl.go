@@ -11,28 +11,46 @@ import (
 	"github.com/go-redis/redis"
 )
 
+const defaultKey = "redisdl.key"
+
 var errStoreToken = errors.New("unable to store token")
+
+// Options defines struct with options to the app
+type Options struct {
+	LockTimeout time.Duration
+	Key         string
+	RetryCount  uint
+	Client      *redis.Client
+}
+
+func (o *Options) setDefault() {
+	if o.Key == "" {
+		o.Key = defaultKey
+	}
+	if o.RetryCount == 0 {
+		o.RetryCount = 5
+	}
+}
 
 // RedisDL defines main struct of the app
 type RedisDL struct {
 	client       *redis.Client
 	m            sync.Mutex
-	key          string
-	lockTimeout  time.Duration
 	currentToken string
+	opt          *Options
 }
 
 // New creates a new app
-func New(c *redis.Client, key string) (*RedisDL, error) {
-	if _, err := c.Ping().Result(); err != nil {
+func New(opt *Options) (*RedisDL, error) {
+	opt.setDefault()
+	if _, err := opt.Client.Ping().Result(); err != nil {
 		return nil, fmt.Errorf("redis is not available: %v", err)
 	}
 
 	return &RedisDL{
-		client:      c,
-		m:           sync.Mutex{},
-		key:         key,
-		lockTimeout: 5 * time.Second,
+		client: opt.Client,
+		m:      sync.Mutex{},
+		opt:    opt,
 	}, nil
 }
 
@@ -48,6 +66,11 @@ func (r *RedisDL) Unlock() error {
 	return r.deleteToken()
 }
 
+// GetToken returns currrent token
+func (r *RedisDL) GetToken() string {
+	return r.currentToken
+}
+
 // resetToken provides removing of current token
 func (r *RedisDL) resetToken() {
 	r.currentToken = ""
@@ -60,7 +83,7 @@ func (r *RedisDL) lock(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	retry := time.NewTimer(r.lockTimeout)
+	retry := time.NewTimer(r.opt.LockTimeout)
 	for {
 		if err := r.storeToken(token); err != nil {
 			return err
@@ -77,7 +100,7 @@ func (r *RedisDL) lock(ctx context.Context) error {
 
 // storeToken provides store of token
 func (r *RedisDL) storeToken(token string) error {
-	ok, err := r.client.SetNX(r.key, token, r.lockTimeout).Result()
+	ok, err := r.client.SetNX(r.opt.Key, token, r.opt.LockTimeout).Result()
 	if err == redis.Nil {
 		err = nil
 	}
@@ -90,7 +113,7 @@ func (r *RedisDL) storeToken(token string) error {
 
 // deleteToken provides removing of the token from redis
 func (r *RedisDL) deleteToken() error {
-	_, err := r.client.Del(r.key).Result()
+	_, err := r.client.Del(r.opt.Key).Result()
 	return err
 }
 
